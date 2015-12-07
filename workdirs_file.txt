@@ -1,5 +1,0 @@
-/home/nikbird
-/home/nikbird/Программа на Python
-/home/nikbird/Шаблоны
-/bin
-/usr/bin
