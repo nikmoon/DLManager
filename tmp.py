@@ -17,25 +17,31 @@ class WorkDirectory(object):
         self._entries = self.read_state_file()
         self.update_entries()
 
+    @property
+    def path(self):
+        return self._path
+
+
+    @property
+    def entries(self):
+        for entry in self._entries:
+            yield entry
+
 
     def update_entries(self, entryList = None):
         '''Добавляем в список рабочих элементов новые элементы каталога'''
         if entryList is None:
             entryList = self.get_dir_entries()
         for entry in entryList:
-            if not entry in entries:
-                entries[entry] = []
+            if not entry in self._entries:
+                self._entries[entry] = []
 
 
     def get_dir_entries(self):
         '''Получить список элементов каталога
         Файл состояния удаляется из списка
         '''
-        entries = os.listdir(self._path)
-        try:
-            entries.remove(STATEFILE_NAME)
-        except ValueError:
-            pass
+        entries = [entry for entry in os.listdir(self._path) if not (STATEFILE_NAME in entry or entry.startswith(u'.'))]
         return entries
 
 
@@ -53,14 +59,17 @@ class WorkDirectory(object):
         if not self.is_statefile_exists():
             return entries
         with open(self._stateFilePath) as stateFile:
-            line = stateFile.readline().decode('utf-8')
-            if line[-1] == u'\n':
-                line = line[:-1]
-            if not line.startswith(u'/'):
-                entryName = line
-                entries[entryName] = []
-            else:
-                entries[entryName].append(line)
+            for line in stateFile:
+                line = line.decode('utf-8')
+                if line.endswith(u'\n'):
+                    line = line[:-1]
+                if not line:
+                    continue
+                if not line.startswith(u'/'):
+                    entryName = line
+                    entries[entryName] = []
+                else:
+                    entries[entryName].append(line)
         return entries
 
 
