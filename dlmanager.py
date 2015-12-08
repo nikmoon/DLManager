@@ -28,7 +28,6 @@ class MyWidget(QtGui.QWidget):
         self._workDirsList = self._read_workdirs_file()
         self._dialogDir = APP_PATH
         self._activeWorkDir = None
-        self._currentIndex = -1;
 
         self._connect_all()
 
@@ -49,8 +48,6 @@ class MyWidget(QtGui.QWidget):
 
 
     def _on_change_work_dir(self, index):
-        if index == self._currentIndex:
-            return
 
         # сохраняем состояние текущего рабочего каталога
         if self._activeWorkDir:
@@ -59,6 +56,7 @@ class MyWidget(QtGui.QWidget):
 
         if index == -1:
             self._activeWorkDir = None
+            self.lwEntries.clear()
         else:
             # открываем новый рабочий каталог
             self._activeWorkDir = WorkDirectory(unicode(self.cboxWorkDirs.currentText()))
@@ -113,17 +111,14 @@ class MyWidget(QtGui.QWidget):
                 self.cboxWorkDirs.addItem(dirPath)
                 print u'Добавляем рабочий каталог: ', dirPath, type(dirPath)
 
-    '''
 
-    setCurrentIndex НЕ ВЫЗЫВАЕТ СОБЫТИЕ
-
-    '''
     def _remove_work_dir(self):
         if self._activeWorkDir:
             if not self._activeWorkDir.delete_state_file():
                 print u'В текущем каталоге есть элементы, на которые есть ссылки'
                 return False
             workDir = self._activeWorkDir
+            self._activeWorkDir = None
             index = self.cboxWorkDirs.currentIndex()
             self.cboxWorkDirs.setCurrentIndex(-1)
             self._workDirsList.remove(workDir.path)
