@@ -6,7 +6,7 @@ import os
 from os import path
 from PyQt4 import QtCore, QtGui, uic
 
-from tmp import WorkDirectory
+from tmp import check_permissions, WorkDirectory
 
 
 QtGui.QApplication.setStyle('plastique')
@@ -45,6 +45,7 @@ class MyWidget(QtGui.QWidget):
         self.closeEvent = self._on_close_app                     # делаем все, что нужно при выходе из программы
         self.cboxWorkDirs.currentIndexChanged[int].connect(self._on_change_work_dir)
         self.btnAddWorkDir.clicked.connect(self._add_work_dir)
+        self.btnRemoveWorkDir.clicked.connect(self._remove_work_dir)
 
 
     def _on_change_work_dir(self, index):
@@ -103,15 +104,39 @@ class MyWidget(QtGui.QWidget):
         dirPath = QtGui.QFileDialog.getExistingDirectory(self, directory=self._dialogDir)
         if not dirPath.isEmpty():
             dirPath = unicode(dirPath)
+            if not check_permissions(dirPath):
+                print u'Недостаточно прав для работы с каталогом "{0}"'.format(dirPath)
+                return
             self._dialogDir = path.dirname(dirPath)
             if not dirPath in self._workDirsList:
                 self._workDirsList.append(dirPath)
                 self.cboxWorkDirs.addItem(dirPath)
                 print u'Добавляем рабочий каталог: ', dirPath, type(dirPath)
 
+    '''
+
+    setCurrentIndex НЕ ВЫЗЫВАЕТ СОБЫТИЕ
+
+    '''
+    def _remove_work_dir(self):
+        if self._activeWorkDir:
+            if not self._activeWorkDir.delete_state_file():
+                print u'В текущем каталоге есть элементы, на которые есть ссылки'
+                return False
+            workDir = self._activeWorkDir
+            index = self.cboxWorkDirs.currentIndex()
+            self.cboxWorkDirs.setCurrentIndex(-1)
+            self._workDirsList.remove(workDir.path)
+            self.cboxWorkDirs.removeItem(index)
+            print u'Каталог "{0}" удален из списка'.format(workDir.path)
+            return True
+        return False
 
 
 if __name__ == '__main__':
+    if not check_permissions(APP_PATH):
+        print u'Не хватает файловых привилегий для запуска приложения'
+        sys.exit()
     APP = QtGui.QApplication(sys.argv)
     mainWindow = MyWidget()
     mainWindow.show()

@@ -8,6 +8,20 @@ from os import path
 STATEFILE_NAME = u'dlman.dir.state'
 
 
+def check_permissions(entryPath):
+    entryStat = os.stat(entryPath)
+    # если мы - владелец элемента
+    if os.geteuid() == entryStat.st_uid:
+        return (entryStat.st_mode >> 6) & 07 == 07
+    # если мы в группе-владельце
+    elif os.getegid() == entryStat.st_gid:
+        return (entryStat.st_mode >> 3) & 07 == 07
+    # если мы вообще левые для этого элемента
+    else:
+        return entryStat.st_mode & 07 == 07
+
+
+
 class WorkDirectory(object):
 
     def __init__(self, dirPath):
@@ -16,6 +30,7 @@ class WorkDirectory(object):
         self._stateFilePath = path.join(self._path, STATEFILE_NAME)
         self._entries = self.read_state_file()
         self.update_entries()
+
 
     @property
     def path(self):
@@ -87,10 +102,28 @@ class WorkDirectory(object):
                         writeList.append(symLink + u'\n')
                     stateFile.write(u''.join(writeList).encode('utf-8'))
 
+    def delete_state_file(self):
+        if self.get_linked_entries_count():
+            return False
+        if self.is_statefile_exists():
+            os.remove(self._stateFilePath)
+        if path.exists(self._stateFilePath + u'.bak'):
+            os.remove(self._stateFilePath + u'.bak')
+        return True
+
 
     def get_entries_count(self):
         '''Получить количество рабочих элементов'''
         return len(self._entries)
+
+
+    def get_linked_entries_count(self):
+        '''Получить количество элементов, на которые есть ссылки'''
+        count = 0
+        for entry in self._entries:
+            if self._entries[entry]:
+                count += 1
+        return count
 
 
     def split_entries(self):
@@ -113,10 +146,5 @@ class WorkDirectory(object):
 
 
 if __name__ == '__main__':
-    myDir = WorkDirectory(u'/media/BADDRIVE/Download/Torrent')
 
-    for key in sorted(myDir._entries):
-        print key[:min(80, len(key))], u':', myDir._entries[key]
-    print myDir.get_entries_count()
-
-
+    print check_permissions(u'/home/vasya/DLManager')
