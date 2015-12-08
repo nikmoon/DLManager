@@ -32,6 +32,9 @@ class WorkDirectory(object):
         self.update_entries()
 
 
+    def add_link(self, entry, link):
+        self._entries[entry].append(link)
+
     @property
     def path(self):
         return self._path
@@ -39,8 +42,14 @@ class WorkDirectory(object):
 
     @property
     def entries(self):
+        entries = {}
         for entry in self._entries:
-            yield entry
+            entries[entry] = self._entries[entry]
+        return entries
+
+
+    def get_entry(self, entry):
+        return self._entries.get(entry)
 
 
     def update_entries(self, entryList = None):
@@ -65,7 +74,7 @@ class WorkDirectory(object):
 
 
     def is_entry_exists(self, entryName):
-        return path.exists(self._path, entryName)
+        return path.exists(path.join(self._path, entryName))
 
 
     def read_state_file(self):
