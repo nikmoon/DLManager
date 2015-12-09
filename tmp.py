@@ -5,8 +5,6 @@ import os
 from os import path
 
 
-STATEFILE_NAME = u'dlman.dir.state'
-
 
 def check_permissions(entryPath):
     entryStat = os.stat(entryPath)
@@ -22,12 +20,54 @@ def check_permissions(entryPath):
 
 
 
+class StateFile(object):
+
+    BACKUP_EXT = u'.bak'
+
+    def __init__(self, fileName, dirPath = None):
+        if dirPath is None:     # значит fileName содержит полное имя файла
+            filePath = fileName
+        else:
+            filePath = path.join(dirPath, fileName)
+        self._path = filePath
+        self._pathBackup = self._path + self.BACKUP_EXT
+
+    @property
+    def path(self):
+        return self._path
+
+
+    @property
+    def pathBackup(self):
+        return self._pathBackup
+
+    @property
+    def exists(self):
+        return path.exists(self._path)
+
+
+    def backup(self):
+        if self.exists:
+            if path.exists(self._pathBackup):
+                os.remove(self._pathBackup)
+            os.rename(self._path, self._pathBackup)
+
+
+    def remove(self):
+        for filePath in [self._path, self._pathBackup]:
+            if path.exists(filePath):
+                os.remove(filePath)
+
+
 class WorkDirectory(object):
+
+    STATE_FILE_NAME = u'dlman.dir.state'
 
     def __init__(self, dirPath):
         '''Каталог dirPath должен существовать'''
         self._path = dirPath
-        self._stateFilePath = path.join(self._path, STATEFILE_NAME)
+        self._stateFile = StateFile(self.STATE_FILE_NAME, self._path)
+        #self._stateFilePath = path.join(self._path, STATEFILE_NAME)
         self._entries = self.read_state_file()
         self.update_entries()
 
@@ -65,12 +105,8 @@ class WorkDirectory(object):
         '''Получить список элементов каталога
         Файл состояния удаляется из списка
         '''
-        entries = [entry for entry in os.listdir(self._path) if not (STATEFILE_NAME in entry or entry.startswith(u'.'))]
+        entries = [entry for entry in os.listdir(self._path) if not (self.STATE_FILE_NAME in entry or entry.startswith(u'.'))]
         return entries
-
-
-    def is_statefile_exists(self):
-        return path.exists(self._stateFilePath)
 
 
     def is_entry_exists(self, entryName):
@@ -80,9 +116,9 @@ class WorkDirectory(object):
     def read_state_file(self):
         '''Чтение файла состояния каталога'''
         entries = {}
-        if not self.is_statefile_exists():
+        if not self._stateFile.exists:
             return entries
-        with open(self._stateFilePath) as stateFile:
+        with open(self._stateFile.path) as stateFile:
             for line in stateFile:
                 line = line.decode('utf-8')
                 if line.endswith(u'\n'):
@@ -101,9 +137,8 @@ class WorkDirectory(object):
         '''Сохранение файла состояния каталога
         Сохраняются только сведения об элементах, на которые имеются ссылки
         '''
-        if self.is_statefile_exists():
-            os.rename(self._stateFilePath, self._stateFilePath + u'.bak')
-        with open(self._stateFilePath, 'w') as stateFile:
+        self._stateFile.backup()
+        with open(self._stateFile._path, 'w') as stateFile:
             for entryName in self._entries:
                 if self._entries[entryName]:
                     writeList = [entryName + u'\n']
@@ -111,13 +146,11 @@ class WorkDirectory(object):
                         writeList.append(symLink + u'\n')
                     stateFile.write(u''.join(writeList).encode('utf-8'))
 
+
     def delete_state_file(self):
         if self.get_linked_entries_count():
             return False
-        if self.is_statefile_exists():
-            os.remove(self._stateFilePath)
-        if path.exists(self._stateFilePath + u'.bak'):
-            os.remove(self._stateFilePath + u'.bak')
+        self._stateFile.remove()
         return True
 
 
@@ -128,11 +161,7 @@ class WorkDirectory(object):
 
     def get_linked_entries_count(self):
         '''Получить количество элементов, на которые есть ссылки'''
-        count = 0
-        for entry in self._entries:
-            if self._entries[entry]:
-                count += 1
-        return count
+        return len([True for linksList in self._entries.itervalues() if linksList])
 
 
     def split_entries(self):

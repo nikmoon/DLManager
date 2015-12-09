@@ -6,7 +6,7 @@ import os
 from os import path
 from PyQt4 import QtCore, QtGui, uic
 
-from tmp import check_permissions, WorkDirectory
+from tmp import check_permissions, StateFile, WorkDirectory
 from EventHandlers import EvHandler_EntriesListWidget, EvHandler_WorkDirsCBox, EvHandler_Links
 
 
@@ -14,22 +14,23 @@ QtGui.QApplication.setStyle('plastique')
 
 
 APP_PATH = path.dirname(path.abspath(__file__))
-WORKDIRS_FILE = u'workdirs_file.txt'
 QAPP = None
-
-def focusInEvent(self):
-    print u'Основное окно приложения получило фокус'
-    print self
 
 
 class MyWidget(QtGui.QWidget):
 
+    STATE_FILE_NAME = u'workdirs_file.txt'
     UI_FILE = path.join(APP_PATH, u'dlmanager.ui')
+    ENTRIES_COLORS = {
+        'work': QtGui.QColor(50, 50, 50),
+        'new': QtGui.QColor(0, 200, 0),
+        'del': QtGui.QColor(200, 0, 0),
+    }
 
     def __init__(self):
         super(MyWidget, self).__init__()
         uic.loadUi(self.UI_FILE, self)
-        self._workDirsFilePath = path.join(APP_PATH, WORKDIRS_FILE)
+        self._stateFile = StateFile(self.STATE_FILE_NAME, APP_PATH)
         self._workDirsList = self._read_workdirs_file()
         self._dialogDir = APP_PATH
         self._activeWorkDir = None
@@ -72,10 +73,10 @@ class MyWidget(QtGui.QWidget):
     def _fill_lw_entries(self):
         '''Вывод списка элементов текущего рабочего каталога'''
         self.lwEntries.clear()                              # очищаем QListWidget со списком рабочих элементов
-        colors = [QtGui.QColor(50, 50, 50), QtGui.QColor(0, 200, 0), QtGui.QColor(200, 0, 0)]
+        colorsNames = ['work', 'new', 'del']
         for i, entries in enumerate(self._activeWorkDir.split_entries()):
             if entries:
-                color = colors[i]
+                color = self.ENTRIES_COLORS[colorsNames[i]]
                 for entry in sorted(entries):
                     entryItem = QtGui.QListWidgetItem(entry, self.lwEntries)
                     entryItem.setTextColor(color)
@@ -93,8 +94,8 @@ class MyWidget(QtGui.QWidget):
         Если для каталога отсутствуют необходимые разрешения, он заносится в список проблемных
         '''
         workDirsList = []
-        if path.exists(self._workDirsFilePath):
-            with open(self._workDirsFilePath) as workDirsFile:
+        if self._stateFile.exists:
+            with open(self._stateFile.path) as workDirsFile:
                 for line in workDirsFile:
                     line = line.decode('utf-8')
                     if line.endswith(u'\n'):
@@ -111,9 +112,8 @@ class MyWidget(QtGui.QWidget):
 
     def _save_workdirs_file(self):
         '''Сохранение списка рабочих каталогов'''
-        if path.exists(self._workDirsFilePath):
-            os.rename(self._workDirsFilePath, self._workDirsFilePath + u'.bak')
-        with open(self._workDirsFilePath, 'w') as workDirsFile:
+        self._stateFile.backup()
+        with open(self._stateFile.path, 'w') as workDirsFile:
             for dirPath in self._workDirsList:
                 workDirsFile.write((dirPath + u'\n').encode('utf-8'))
 
@@ -166,13 +166,9 @@ class MyWidget(QtGui.QWidget):
             return False
         else:
             self._activeWorkDir.add_link(entryName, destPath)
-
-            ''' ТУТ НАДО ДОРАБОТАТЬ - ПРОСТО ИЗМЕНЯТЬ ЦВЕТ ТЕКСТА ИТЕМА'''
-            self._fill_lw_entries()
-            self.lwEntries.setCurrentRow(row)
-            '''-------------------------------------------------------'''
-
+            entryItem.setTextColor(self.ENTRIES_COLORS['work'])
             print u'Добавлена ссылка "{0}" для "{1}" '.format(destPath, srcPath)
+            self._fill_lw_links(entryName)
             return True
 
 
@@ -189,8 +185,13 @@ class MyWidget(QtGui.QWidget):
             return False
         else:
             entryName = unicode(self.lwEntries.currentItem().text())
-            self._activeWorkDir.get_entry(entryName).remove(linkPath)
+            linksList = self._activeWorkDir.get_entry(entryName)
+            linksList.remove(linkPath)
+            #self._activeWorkDir.get_entry(entryName).remove(linkPath)
             self._fill_lw_links(entryName)
+            if not linksList:
+                self.lwEntries.currentItem().setTextColor(self.ENTRIES_COLORS['new'])
+            self.lwEntries.setFocus()
             return True
         
 
