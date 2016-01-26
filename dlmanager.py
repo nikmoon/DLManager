@@ -71,6 +71,7 @@ class MyWidget(QtGui.QWidget):
 
 
     def closeEvent(self, event):
+        '''Действия при закрытии приложения'''
         for workDir in self._workDirs.values():
             workDir.save_state()
         self._cfgFile.write(self._workDirs)
@@ -78,11 +79,15 @@ class MyWidget(QtGui.QWidget):
 
 
     def connect_all(self): 
+        '''Соединяем все слоты с сигналами и назначаем обработчики клавиш виджетам'''
         self.cboxWorkDirs.currentIndexChanged[int].connect(self.on_change_work_dir)
         self.lwEntries.currentRowChanged.connect(self.on_select_new_entry)
         
         self.lwEntries.baseKeyEvent = self.lwEntries.keyPressEvent
         self.lwEntries.keyPressEvent = self.keyPressEvent_lwEntries
+
+        self.lwLinks.baseKeyEvent = self.lwLinks.keyPressEvent
+        self.lwLinks.keyPressEvent = self.keyPressEvent_lwLinks
 
 
     def keyPressEvent_lwEntries(self, keyEvent):
@@ -92,10 +97,36 @@ class MyWidget(QtGui.QWidget):
         if (key == Qt.Key_N) and (modKeys & Qt.ControlModifier):    # Ctrl + N - добавляем новую ссылку
             print 'Добавляем новую ссылку на элемент'
             self.add_link()
-        if key == Qt.Key_T:
-            if modKeys & Qt.ControlModifier:    # Ctrl + T - добавляем новую ссылку
-                self.cboxWorkDirs.setCurrentIndex(-1)
+            keyEvent.accept()
         self.lwEntries.baseKeyEvent(keyEvent)
+
+
+    def keyPressEvent_lwLinks(self, keyEvent):
+        modKeys = QtGui.QApplication.keyboardModifiers()
+        key = keyEvent.key()
+        if (key == Qt.Key_N) and (modKeys & Qt.ControlModifier):    # Ctrl + N - меняем название ссылки
+            print 'Меняем название ссылки'
+            self.change_link_filename()
+            keyEvent.accept()
+        self.lwLinks.baseKeyEvent(keyEvent)
+
+
+    def change_link_filename(self):
+        try:
+            linkItem = self.lwLinks.currentItem()
+            linkPath = unicode(linkItem.text())
+            splitResult = linkPath.rsplit('.', 1)
+            newFileName, result = QtGui.QInputDialog().getText(self, u'Ввод данных', u'Имя файла:', text=path.basename(linkPath))
+            if result:
+                newFilePath = path.join(path.dirname(linkPath), unicode(newFileName))
+                print newFilePath
+                entryItem = self.lwEntries.currentItem()
+                entryName = unicode(entryItem.text())
+                links = self._activeWorkDir.get_entry_links(entryName)
+                links[links.index(linkPath)] = newFilePath
+                os.rename(linkPath, newFilePath)
+        except Exception as ex:
+            print ex.args
 
 
     def dialog_select_dir(self):
@@ -126,7 +157,7 @@ class MyWidget(QtGui.QWidget):
             destPath = path.join(destDir, entryName)
             os.symlink(srcPath, destPath)
         except Exception as ex:
-            print ex.args[1]
+            print ex.args
             return False
         else:
             linksList.append(destPath)
