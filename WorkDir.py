@@ -70,19 +70,36 @@ class WorkDir(object):
 
 
     def check_entries(self):
+        # ищем новые файлы
         for entry in self.get_dir_entries():
             if not entry in self._entries:
                 self._entries[entry] = []
+        # ищем удаленные файлы и удаляем их из списка
+        for entry in self._entries.keys():
+            if not path.exists(path.join(self._path, entry)):
+                self.delete_links(entry)
+                del self._entries[entry]
+
+
+    def delete_links(self, entry):
+        links = self._entries[entry]
+        for link in links:
+            try:
+                os.unlink(link)
+            except Exception as ex:
+                print 'Error symlink deletion: {0}'.format(link)
 
 
     def split_entries(self):
         workEntries = {}
         newEntries = {}
         removedEntries = {}
-        for entry, links in self._entries.iteritems():
+        for entry in self._entries.keys():
+            links = self._entries[entry]
             entryPath = path.join(self._path, entry)
             if not path.exists(entryPath):  # файл был удален
-                removedEntries[entry] = links
+                self.delete_links(entry)
+                del self._entries[entry]
             elif not links:                 # новый файл
                 newEntries[entry] = links
             else:

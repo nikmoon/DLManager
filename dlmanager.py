@@ -82,6 +82,8 @@ class MyWidget(QtGui.QWidget):
         '''Соединяем все слоты с сигналами и назначаем обработчики клавиш виджетам'''
         self.cboxWorkDirs.currentIndexChanged[int].connect(self.on_change_work_dir)
         self.lwEntries.currentRowChanged.connect(self.on_select_new_entry)
+        self.btnAddWorkDir.clicked.connect(self.add_work_dir)
+        self.btnRemoveWorkDir.clicked.connect(self.remove_work_dir)
         
         self.lwEntries.baseKeyEvent = self.lwEntries.keyPressEvent
         self.lwEntries.keyPressEvent = self.keyPressEvent_lwEntries
@@ -125,6 +127,7 @@ class MyWidget(QtGui.QWidget):
                 links = self._activeWorkDir.get_entry_links(entryName)
                 links[links.index(linkPath)] = newFilePath
                 os.rename(linkPath, newFilePath)
+                self.sync_lwLinks(entryName)
         except Exception as ex:
             print ex.args
 
@@ -139,6 +142,33 @@ class MyWidget(QtGui.QWidget):
             self._activeDialogDir = path.dirname(dirPath)
             return dirPath
         return None
+
+
+    def add_work_dir(self):
+        dirPath = self.dialog_select_dir()
+        if dirPath is None:
+            return
+        if not dirPath in self._workDirs:
+            try:
+                self._workDirs[dirPath] = WorkDir(dirPath)
+                self.cboxWorkDirs.addItem(dirPath)
+                print u'Добавляем рабочий каталог: ', dirPath, type(dirPath)
+            except Exception as ex:
+                print ex.args
+
+
+    def remove_work_dir(self):
+        if self._activeWorkDir:
+            dirPath = self._activeWorkDir._path
+            self._activeWorkDir.save_state()
+            self._activeWorkDir = None
+            index = self.cboxWorkDirs.currentIndex()
+            self.cboxWorkDirs.setCurrentIndex(-1)
+            self.cboxWorkDirs.removeItem(index)
+            del self._workDirs[dirPath]
+            print u'Каталог "{0}" удален из списка'.format(dirPath)
+            return True
+        return False
 
 
     def add_link(self):
@@ -167,11 +197,17 @@ class MyWidget(QtGui.QWidget):
             return True
 
 
+    def clear_counters(self):
+        for counter in [self.ledAllEntries, self.ledNewEntries, self.ledWorkEntries]:
+            counter.clear()
+
+
     def on_change_work_dir(self, index):
         '''Из списка выбран другой рабочий каталог'''
         if index == -1:
             self._activeWorkDir = None
             self.lwEntries.clear()
+            self.clear_counters()
         else:
             self._activeWorkDir = self._workDirs[unicode(self.cboxWorkDirs.itemText(index))]
             self.sync_lwEntries()
@@ -214,6 +250,10 @@ class MyWidget(QtGui.QWidget):
         self.lwEntries.clear()
         try:
             workEntries, newEntries, removedEntries = self._activeWorkDir.split_entries()
+            self.ledAllEntries.setText(unicode(len(newEntries) + len(workEntries)))
+            self.ledNewEntries.setText(unicode(len(newEntries)))
+            self.ledWorkEntries.setText(unicode(len(workEntries)))
+
             for i, entries in enumerate([newEntries, workEntries, removedEntries]):
                 colorName = self.COLOR_NAMES[i]
                 color = self.ENTRIES_COLORS[colorName]
@@ -237,32 +277,6 @@ class MyWidget(QtGui.QWidget):
 
 """
 class MyWidget(QtGui.QWidget):
-
-    def _add_work_dir(self):
-        dirPath = self.dialog_select_dir()
-        if dirPath is None:
-            return
-        if not dirPath in self._workDirsList:
-            self._workDirsList.append(dirPath)
-            self.cboxWorkDirs.addItem(dirPath)
-            print u'Добавляем рабочий каталог: ', dirPath, type(dirPath)
-
-
-    def _remove_work_dir(self):
-        if self._activeWorkDir:
-            if not self._activeWorkDir.delete_state_file():
-                print u'В текущем каталоге есть элементы, на которые есть ссылки'
-                return False
-            workDir = self._activeWorkDir
-            self._activeWorkDir = None
-            index = self.cboxWorkDirs.currentIndex()
-            self.cboxWorkDirs.setCurrentIndex(-1)
-            self._workDirsList.remove(workDir.path)
-            self.cboxWorkDirs.removeItem(index)
-            print u'Каталог "{0}" удален из списка'.format(workDir.path)
-            return True
-        return False
-
 
 
     def _remove_link(self):
