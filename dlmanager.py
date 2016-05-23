@@ -3,12 +3,13 @@
 
 import sys
 import os
+import stat
 from os import path
 from PyQt4 import QtCore, QtGui, uic
 from PyQt4.QtCore import Qt
 
 from LocalLib import APP_PATH, check_permissions
-from ConfigFile import ConfigFile
+#from ConfigFile import ConfigFile
 from WorkDir import WorkDir
 
 
@@ -19,63 +20,73 @@ QtGui.QApplication.setStyle('plastique')
 class MyWidget(QtGui.QWidget):
 
     CFG_FILE_NAME = u'.dirlist.cfg'
+    LOCK_FILE_NAME = u'lockfile.lock'
     
     UI_FILE_PATH = path.join(APP_PATH, u'dlmanager.ui')
+
     ENTRIES_COLORS = {
         'work': QtGui.QColor(50, 50, 50),
         'new':  QtGui.QColor(0, 200, 0),
         'del':  QtGui.QColor(200, 0, 0),
     }
+
     COLOR_NAMES = ('new', 'work', 'del')
+
 
     def __init__(self):
         super(MyWidget, self).__init__()
+
+        self.lock_app()
         uic.loadUi(self.UI_FILE_PATH, self)
-        self._cfgFile = ConfigFile([self._read_cfg, self._write_cfg], self.CFG_FILE_NAME, APP_PATH)
-
-        # список рабочих каталогов, для работы с которыми недостаточно прав
-        self._problemDirs = []
-
-        # текущий рабочий каталог
+        self._dirList = self._get_dir_list()
         self._activeWorkDir = None
-
-        # словарь рабочих каталогов в виде {u'Путь к каталогу: WorkDir(u'Путь к каталогу')'}
-        self._workDirs = self.get_work_dirs()
         self.sync_cboxWorkDirs()
-        
-        # текущий каталог для диалога выбора каталога
         self._activeDialogDir = APP_PATH
-
         self.connect_all()
 
 
-    def _read_cfg(self, cfgFilePath = None):
-        '''Чтение файла конфигурации'''
-        cfg = []
-        if not cfgFilePath is None:
-            with open(cfgFilePath) as cfgFile:
-                for line in cfgFile:
-                    line = line.decode('utf-8').rstrip()
-                    if line:
-                        cfg.append(line)
-        return cfg
+    def lock_app(self):
+        '''Блокируем возможность запуска других экземпляров приложения'''
+        f = None
+        try:
+            f = open(path.join(APP_PATH, self.LOCK_FILE_NAME), "w")
+            os.fchmod(f.fileno(), 0)
+        except Exception:
+            raise
+        finally:
+            if not f is None:
+                f.close()
 
 
-    def _write_cfg(self, cfgFilePath, cfg):
-        '''Запись файла конфигурации'''
+    def unlock_app(self):
+        # Разблокируем возможность запуска приложения
+        os.remove(path.join(APP_PATH, self.LOCK_FILE_NAME))
+
+
+    def _get_dir_list(self):
+        '''Получаем список рабочих каталогов'''
         dirList = []
-        with open(cfgFilePath, 'w') as cfgFile:
-            for dirPath in cfg:
-                dirList.append(dirPath.encode('utf-8') + '\n')
+        with open(self.CFG_FILE_NAME) as cfgFile:
+            for line in cfgFile:
+                line = line.decode('utf-8').rstrip()
+                if line:
+                    dirList.append(line)
+        return dirList
+
+
+    def _save_dir_list(self):
+        '''Сохранение списка рабочих каталогов'''
+        dirList = [dirPath.encode('utf-8') + '\n' for dirPath in self._dirList]
+        with open(self.CFG_FILE_NAME, 'w') as cfgFile:
             cfgFile.writelines(dirList)
 
 
     def closeEvent(self, event):
         '''Действия при закрытии приложения'''
-        for workDir in self._workDirs.values():
-            workDir.save_state()
-        self._cfgFile.write(self._workDirs)
-        print u'Приложение закрывается'
+        if not self._activeWorkDir is None:
+            self._activeWorkDir.save_state()
+        self._save_dir_list()
+        self.unlock_app()
 
 
     def connect_all(self): 
@@ -145,14 +156,15 @@ class MyWidget(QtGui.QWidget):
 
 
     def add_work_dir(self):
+        # Добавляем новый рабочий каталог
         dirPath = self.dialog_select_dir()
         if dirPath is None:
             return
-        if not dirPath in self._workDirs:
+        if not dirPath in self._dirList:
             try:
-                self._workDirs[dirPath] = WorkDir(dirPath)
+                self._dirList.append(dirPath)
                 self.cboxWorkDirs.addItem(dirPath)
-                print u'Добавляем рабочий каталог: ', dirPath, type(dirPath)
+                print u'Добавили рабочий каталог: ', dirPath, type(dirPath)
             except Exception as ex:
                 print ex.args
 
@@ -205,42 +217,30 @@ class MyWidget(QtGui.QWidget):
     def on_change_work_dir(self, index):
         '''Из списка выбран другой рабочий каталог'''
         if index == -1:
-            self._activeWorkDir = None
+            if not self._activeWorkDir is None:
+                self._activeWorkDir.save_state()
+                self._activeWorkDir = None
             self.lwEntries.clear()
             self.clear_counters()
         else:
-            self._activeWorkDir = self._workDirs[unicode(self.cboxWorkDirs.itemText(index))]
+            self._activeWorkDir = WorkDir(unicode(self.cboxWorkDirs.itemText(index)))
             self.sync_lwEntries()
+        print("Изменился текущий рабочий каталог")
 
 
-    def on_select_new_entry(self, row):
+    def on_select_new_entry(self, index):
         '''Текущим выбран новый файл в рабочем каталоге'''
-        if row == -1:
+        if index == -1:
             self.lwLinks.clear()
         else:
-            entryItem = self.lwEntries.item(row)
-            if not entryItem is None:
-                self.sync_lwLinks(unicode(entryItem.text()))
-
-
-    def get_work_dirs(self):
-        '''Чтение списка рабочих каталогов'''
-        workDirs = {}
-        for dirPath in self._cfgFile.read():
-            try:
-                workDir = WorkDir(dirPath)
-                workDirs[dirPath] = workDir
-            except Exception as ex:
-                print ex
-                if not dirPath in self._problemDirs:
-                    self._problemDirs.append(dirPath)
-        return workDirs
+            self.sync_lwLinks(unicode(self.lwEntries.item(index).text()))
 
 
     def sync_cboxWorkDirs(self):
         '''Синхронизация содержимого виджета со списком рабочих каталогов'''
         self.cboxWorkDirs.clear()
-        for dirPath in self._workDirs:
+        for dirPath in self._dirList:
+            print dirPath
             self.cboxWorkDirs.addItem(dirPath)
         self.cboxWorkDirs.setCurrentIndex(-1)   # после синхронизации никакой каталог не выбран
 

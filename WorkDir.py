@@ -118,6 +118,7 @@ class WorkDir(object):
     def save_state(self):
         '''Сохранение состояния рабочего каталога'''
         self._cfgFile.write(self._entries)
+        print u'Состояние каталога {} сохранено'.format(self._path)
 
 
 
