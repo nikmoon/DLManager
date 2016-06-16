@@ -21,6 +21,7 @@ class MyWidget(QtGui.QWidget):
 
     CFG_FILE_NAME = u'.dirlist.cfg'
     LOCK_FILE_NAME = u'lockfile.lock'
+    CFG_FILE_PATH = path.join(APP_PATH, CFG_FILE_NAME)
     LOCK_FILE_PATH = path.join(APP_PATH, LOCK_FILE_NAME)
     
     UI_FILE_PATH = path.join(APP_PATH, u'dlmanager.ui')
@@ -70,7 +71,7 @@ class MyWidget(QtGui.QWidget):
     def _get_dir_list(self):
         '''Получаем список рабочих каталогов'''
         dirList = []
-        with open(self.CFG_FILE_NAME) as cfgFile:
+        with open(self.CFG_FILE_PATH) as cfgFile:
             for line in cfgFile:
                 line = line.decode('utf-8').rstrip()
                 if line:
@@ -81,7 +82,7 @@ class MyWidget(QtGui.QWidget):
     def _save_dir_list(self):
         '''Сохранение списка рабочих каталогов'''
         dirList = [dirPath.encode('utf-8') + '\n' for dirPath in self._dirList]
-        with open(self.CFG_FILE_NAME, 'w') as cfgFile:
+        with open(self.CFG_FILE_PATH, 'w') as cfgFile:
             cfgFile.writelines(dirList)
 
 
