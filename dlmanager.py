@@ -21,6 +21,7 @@ class MyWidget(QtGui.QWidget):
 
     CFG_FILE_NAME = u'.dirlist.cfg'
     LOCK_FILE_NAME = u'lockfile.lock'
+    LOCK_FILE_PATH = path.join(APP_PATH, LOCK_FILE_NAME)
     
     UI_FILE_PATH = path.join(APP_PATH, u'dlmanager.ui')
 
@@ -49,7 +50,7 @@ class MyWidget(QtGui.QWidget):
         '''Блокируем возможность запуска других экземпляров приложения'''
         f = None
         try:
-            f = open(path.join(APP_PATH, self.LOCK_FILE_NAME), "w")
+            f = open(self.LOCK_FILE_PATH, "w")
             os.fchmod(f.fileno(), 0)
         except Exception:
             raise
@@ -60,7 +61,8 @@ class MyWidget(QtGui.QWidget):
 
     def unlock_app(self):
         # Разблокируем возможность запуска приложения
-        os.remove(path.join(APP_PATH, self.LOCK_FILE_NAME))
+        if path.exists(self.LOCK_FILE_PATH):
+            os.remove(self.LOCK_FILE_PATH)
 
 
     def _get_dir_list(self):
@@ -308,6 +310,9 @@ if __name__ == '__main__':
     APP = QtGui.QApplication(sys.argv)
     mainWindow = MyWidget()
     mainWindow.show()
-    sys.exit(APP.exec_())
+    try:
+        sys.exit(APP.exec_())
+    finally:
+        mainWindow.unlock_app()
 
 
