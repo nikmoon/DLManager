@@ -46,11 +46,12 @@ class MyWidget(QtGui.QWidget):
         self.connect_all()
 
 
-    def lock_app(self):
+    @classmethod
+    def lock_app(cls):
         '''Блокируем возможность запуска других экземпляров приложения'''
         f = None
         try:
-            f = open(self.LOCK_FILE_PATH, "w")
+            f = open(cls.LOCK_FILE_PATH, "w")
             os.fchmod(f.fileno(), 0)
         except Exception:
             raise
@@ -59,10 +60,11 @@ class MyWidget(QtGui.QWidget):
                 f.close()
 
 
-    def unlock_app(self):
+    @classmethod
+    def unlock_app(cls):
         # Разблокируем возможность запуска приложения
-        if path.exists(self.LOCK_FILE_PATH):
-            os.remove(self.LOCK_FILE_PATH)
+        if path.exists(cls.LOCK_FILE_PATH):
+            os.remove(cls.LOCK_FILE_PATH)
 
 
     def _get_dir_list(self):
@@ -308,9 +310,9 @@ class MyWidget(QtGui.QWidget):
 
 if __name__ == '__main__':
     APP = QtGui.QApplication(sys.argv)
-    mainWindow = MyWidget()
-    mainWindow.show()
     try:
+        mainWindow = MyWidget()
+        mainWindow.show()
         sys.exit(APP.exec_())
     finally:
         mainWindow.unlock_app()
