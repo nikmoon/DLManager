@@ -209,6 +209,9 @@ class MyWidget(QtGui.QWidget):
         else:
             linksList.append(destPath)
             entryItem.setTextColor(self.ENTRIES_COLORS['work'])
+            if len(linksList) < 2:
+                self.ledNewEntries.setText(unicode(int(self.ledNewEntries.text()) - 1))
+                self.ledWorkEntries.setText(unicode(int(self.ledWorkEntries.text()) + 1))
             print u'Добавлена ссылка "{0}" для "{1}" '.format(destPath, srcPath)
             self.sync_lwLinks(entryName)
             return True
