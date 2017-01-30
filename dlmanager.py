@@ -316,11 +316,11 @@ class MyWidget(QtGui.QWidget):
 
 if __name__ == '__main__':
     APP = QtGui.QApplication(sys.argv)
-    #try:
-    mainWindow = MyWidget()
-    mainWindow.show()
-    sys.exit(APP.exec_())
-    #finally:
-    #    mainWindow.unlock_app()
+    try:
+        mainWindow = MyWidget()
+        mainWindow.show()
+        sys.exit(APP.exec_())
+    finally:
+        mainWindow.unlock_app()
 
 
