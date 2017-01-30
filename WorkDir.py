@@ -60,7 +60,6 @@ class WorkDir(object):
                 cfgFile.writelines(toWrite)
 
 
-
     def get_entries(self):
         return self._entries
 
@@ -70,24 +69,40 @@ class WorkDir(object):
 
 
     def check_entries(self):
-        # ищем новые файлы
+        # ищем новые файлы в рабочем каталоге
+        workEntries = self._entries
         for entry in self.get_dir_entries():
-            if not entry in self._entries:
-                self._entries[entry] = []
-        # ищем удаленные файлы и удаляем их из списка
-        for entry in self._entries.keys():
-            if not path.exists(path.join(self._path, entry)):
-                self.delete_links(entry)
-                del self._entries[entry]
+            if not entry in workEntries:
+                workEntries[entry] = []
+        # ищем файлы, удаленные из рабочего каталога
+        for entry, links in workEntries.items():
+            entryPath = path.join(self._path, entry)
+            # такого файла не существует, удаляем сведения о нем из нашего списка
+            if not path.exists(entryPath):
+                self.delete_links(links)
+                del workEntries[entry]
+
+            # файл существует
+            elif links:
+                # оставляем только существующие ссылки (даже сломанные)
+                newLinks = [link for link in links if path.lexists(link)]
+                workEntries[entry] = newLinks
+
+                # исправляем сломанные ссылки
+                for link in newLinks:
+                    if os.readlink(link) != entryPath:
+                        os.unlink(link)
+                        os.symlink(entryPath, link)
 
 
-    def delete_links(self, entry):
-        links = self._entries[entry]
+    def delete_links(self, links):
         for link in links:
-            try:
+            if path.exists(link):
                 os.unlink(link)
-            except Exception as ex:
-                print 'Error symlink deletion: {0}'.format(link)
+        #    try:
+        #        os.unlink(link)
+        #    except Exception as ex:
+        #        print u'Error symlink deletion: {0}'.format(link)
 
 
     def split_entries(self):

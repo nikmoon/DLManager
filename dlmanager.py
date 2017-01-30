@@ -71,6 +71,8 @@ class MyWidget(QtGui.QWidget):
     def _get_dir_list(self):
         '''Получаем список рабочих каталогов'''
         dirList = []
+        if not path.exists(self.CFG_FILE_PATH):
+            return dirList
         with open(self.CFG_FILE_PATH) as cfgFile:
             for line in cfgFile:
                 line = line.decode('utf-8').rstrip()
@@ -314,11 +316,11 @@ class MyWidget(QtGui.QWidget):
 
 if __name__ == '__main__':
     APP = QtGui.QApplication(sys.argv)
-    try:
-        mainWindow = MyWidget()
-        mainWindow.show()
-        sys.exit(APP.exec_())
-    finally:
-        mainWindow.unlock_app()
+    #try:
+    mainWindow = MyWidget()
+    mainWindow.show()
+    sys.exit(APP.exec_())
+    #finally:
+    #    mainWindow.unlock_app()
 
 
